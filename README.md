@@ -2,27 +2,27 @@
 
 This repository contains a Python-based simulation of a critical component in a cross-chain bridge: the event listener. This component, often run by relayers or validators, is responsible for monitoring events on a source blockchain and triggering corresponding actions on a destination blockchain.
 
-This script is designed to be a robust, well-architected example that demonstrates best practices in building decentralized system components, including configuration management, modular design, error handling, and interaction with external services.
+This simulation is designed as a robust, well-architected example that demonstrates best practices in building decentralized system components, including configuration management, modular design, error handling, and interaction with external services.
 
 ## Concept
 
-In a typical cross-chain bridge, a user locks or deposits assets (like ETH or ERC20 tokens) into a smart contract on a source chain (e.g., Ethereum). This action emits an event, such as `DepositMade`. 
+In a typical cross-chain bridge, a user locks or deposits assets (like ETH or ERC20 tokens) into a smart contract on a source chain (e.g., Ethereum). This action emits an on-chain event, such as `DepositMade`.
 
 An off-chain service, the **Event Listener**, must securely and reliably detect this event. Upon detection, it validates the event data and triggers a transaction on the destination chain (e.g., Scroll, Polygon) to mint a corresponding wrapped token (e.g., WETH) for the user. This ensures that assets are represented 1:1 across chains.
 
-`scroll_plast` simulates this off-chain listener, providing the core logic to watch, process, and relay these critical events.
+`ScrollPlast` simulates this off-chain listener, providing the core logic to watch, process, and relay these critical events.
 
 ## Code Architecture
 
 The script is designed with a clear separation of concerns, organized into several main classes:
 
-- **`ConfigManager`**: Responsible for loading and validating all necessary configurations from a `.env` file. This includes RPC endpoints, private keys, contract addresses, and API keys. This keeps sensitive data and settings out of the main codebase.
+-   **`ConfigManager`**: Responsible for loading and validating all necessary configurations from a `.env` file. This includes RPC endpoints, private keys, contract addresses, and API keys. This keeps sensitive data and settings out of the main codebase.
 
-- **`BlockchainConnector`**: An abstraction layer over the `web3.py` library. It handles all direct interactions with the blockchain nodes, such as creating web3 instances, connecting to RPCs, instantiating contract objects, and, most importantly, building, signing, and sending transactions with proper nonce management and error handling.
+-   **`BlockchainConnector`**: An abstraction layer over the `web3.py` library. It handles all direct interactions with the blockchain nodes, such as creating web3 instances, connecting to RPCs, instantiating contract objects, and, most importantly, building, signing, and sending transactions with proper nonce management and error handling.
 
-- **`TransactionProcessor`**: This class contains the business logic for what to do when an event is detected. It receives event data, validates it, constructs the appropriate function call for the destination contract (e.g., `mint()`), fetches an optimal gas price from an external API, and uses the `BlockchainConnector` to execute the transaction.
+-   **`TransactionProcessor`**: This class contains the business logic for what to do when an event is detected. It receives event data, validates it, constructs the appropriate function call for the destination contract (e.g., `mint()`), fetches an optimal gas price from an external API, and uses the `BlockchainConnector` to execute the transaction.
 
-- **`BridgeEventListener`**: The main orchestrator. It uses the `BlockchainConnector` to connect to the source chain and continuously polls for new `DepositMade` events from the bridge contract. When an event is found, it passes the data to the `TransactionProcessor` to be handled.
+-   **`BridgeEventListener`**: The main orchestrator. It uses the `BlockchainConnector` to connect to the source chain and continuously polls for new `DepositMade` events from the bridge contract. When an event is found, it passes the data to the `TransactionProcessor` to be handled.
 
 ### System Flow Diagram
 
@@ -31,7 +31,7 @@ The script is designed with a clear separation of concerns, organized into sever
                                     |
                                     | emits Event (e.g., DepositMade)
                                     v
- [scroll_plast Event Listener] <--polls for events--
+ [ScrollPlast Event Listener] <--polls for events--
        |
        | 1. Detects & validates event
        | 2. Passes to Processor
@@ -55,18 +55,18 @@ The script is designed with a clear separation of concerns, organized into sever
 2.  **Connection**: It then creates two instances of `BlockchainConnector`: one for the source chain (read-only) and one for the destination chain (read-write, configured with the relayer's private key).
 3.  **Setup**: The `TransactionProcessor` and `BridgeEventListener` are initialized with the necessary connectors and contract details.
 4.  **Polling Loop**: The `BridgeEventListener` starts its main `listen()` loop. It gets the current latest block number and creates an event filter to start watching for `DepositMade` events from that point forward.
-5.  **Event Detection**: In each loop iteration, it queries the filter for new event entries. 
+5.  **Event Detection**: In each loop iteration, it queries the filter for new event entries.
 6.  **Processing**: If new events are found, it iterates through them and passes each one to the `TransactionProcessor`.
-7.  **Transaction Execution**: The `TransactionProcessor` does the following for each event:
-    a.  Creates a unique ID for the event to prevent duplicates (re-processing).
+7.  **Transaction Execution**: The `TransactionProcessor` performs the following steps for each event:
+    a.  Logs a unique identifier for the event (e.g., from the transaction hash and log index) to prevent duplicate processing.
     b.  Constructs the `mint` function call with parameters from the event (user address, amount, etc.).
-    c.  (Optional) Makes an HTTP request via the `requests` library to an external gas oracle API to fetch a competitive gas price.
+    c.  (Optional) If configured, makes an HTTP request via the `requests` library to an external gas oracle API to fetch a competitive gas price.
     d.  Calls the `build_and_send_tx` method on the destination chain's `BlockchainConnector`.
     e.  The connector handles nonce management, gas estimation, signing the transaction, sending it to the network, and waiting for the receipt to confirm success or failure.
 8.  **Logging**: Throughout the entire process, detailed logs are printed to the console, showing the status of the listener, events found, and the outcome of each transaction.
 9.  **Continuation**: The loop sleeps for a configured interval (`POLL_INTERVAL`) and then repeats, ensuring continuous monitoring.
 
-## Usage Example
+## Usage
 
 1.  **Clone the repository:**
     ```bash
@@ -116,4 +116,21 @@ The script is designed with a clear separation of concerns, organized into sever
     python script.py
     ```
 
-The listener will start, connect to the chains, and begin polling for events. You will see log messages indicating its status.
+    The listener will start, and you will see log messages indicating its status.
+
+    **Example Output:**
+    ```
+    INFO:root:--- Starting Bridge Event Listener ---
+    INFO:root:Successfully connected to source chain (Chain ID: 11155111)
+    INFO:root:Successfully connected to destination chain (Chain ID: 534351)
+    INFO:root:Relayer address: 0x...
+    INFO:root:Starting to listen for 'DepositMade' events on contract 0x... from block 'latest'
+    INFO:root:Polling for new events... No new events found.
+    INFO:root:Polling for new events...
+    INFO:root:Found 1 new event(s).
+    INFO:root:Processing event: {'args': {'user': '0x...', 'amount': 1000000000000000000}, 'transactionHash': ...}
+    INFO:root:Building transaction to call 'mint' on contract 0x...
+    INFO:root:Transaction sent successfully. Hash: 0x...
+    INFO:root:Waiting for transaction receipt...
+    INFO:root:Transaction confirmed in block 123456.
+    ```
