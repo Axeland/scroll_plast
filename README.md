@@ -2,19 +2,19 @@
 
 This repository contains a Python-based simulation of a critical component in a cross-chain bridge: the event listener. This component, often run by relayers or validators, is responsible for monitoring events on a source blockchain and triggering corresponding actions on a destination blockchain.
 
-This simulation is designed as a robust, well-architected example demonstrating best practices for building decentralized system components, including configuration management, modular design, error handling, and interaction with external services.
+This simulation is a well-architected example demonstrating best practices for building components of decentralized systems, including configuration management, modular design, error handling, and interaction with external services.
 
 ## Key Features
 
 *   **Modular Architecture**: Clear separation of concerns between configuration, blockchain interaction, and business logic.
 *   **Configuration Management**: Securely manages secrets and settings using a `.env` file.
 *   **Robust Transaction Handling**: Includes nonce management, gas price estimation via an external API, and waiting for transaction confirmation.
-*   **Persistent Polling**: Continuously monitors the source chain for new events with a configurable polling interval.
-*   **Error Handling**: Implements basic error handling for network requests and blockchain interactions.
+*   **Persistent Polling**: Monitors the source chain for new events at a configurable interval.
+*   **Error Handling**: Implements robust error handling for network requests and blockchain interactions.
 
 ## Concept
 
-In a typical cross-chain bridge, a user locks or deposits assets (like ETH or ERC20 tokens) into a smart contract on a source chain (e.g., Ethereum). This action emits an on-chain event, such as `DepositMade`.
+In a typical cross-chain bridge, a user locks or deposits assets (like ETH or ERC20 tokens) into a smart contract on a source chain (e.g., Ethereum). This action emits an on-chain event, like `DepositMade`.
 
 An off-chain service, the **Event Listener**, must securely and reliably detect this event. Upon detection, it validates the event data and triggers a transaction on the destination chain (e.g., Scroll, Polygon) to mint a corresponding wrapped token (e.g., WETH) for the user. This ensures that assets are represented 1:1 across chains.
 
@@ -24,7 +24,7 @@ An off-chain service, the **Event Listener**, must securely and reliably detect 
 
 The script is designed with a clear separation of concerns, organized into several main classes:
 
--   **`ConfigManager`**: Responsible for loading and validating all necessary configurations from a `.env` file. This includes RPC endpoints, private keys, contract addresses, and API keys. This approach keeps sensitive data and settings out of the main codebase.
+-   **`ConfigManager`**: Responsible for loading and validating all necessary configurations from a `.env` file. This includes RPC endpoints, private keys, contract addresses, and API keys. This approach keeps sensitive data and settings out of the version-controlled codebase.
 
 -   **`BlockchainConnector`**: An abstraction layer over the `web3.py` library. It handles all direct interactions with blockchain nodes, such as creating web3 instances and instantiating contract objects. It manages the full transaction lifecycle: building, signing, and sending transactions, complete with proper nonce management and error handling.
 
@@ -70,7 +70,7 @@ The script is designed with a clear separation of concerns, organized into sever
     b.  Constructs the `mint` function call with parameters from the event (user address, amount, etc.).
     c.  (Optional) If configured, makes an HTTP request via the `requests` library to an external gas oracle API to fetch a competitive gas price.
     d.  Calls the `build_and_send_tx` method on the destination chain's `BlockchainConnector`.
-    e.  The connector handles nonce management, gas estimation, signing the transaction, sending it, and waiting for the receipt to confirm success or failure.
+    e.  The connector handles nonce management, gas estimation, signing the transaction, sending it, and waits for the transaction receipt to confirm its success or failure.
 8.  **Logging**: Throughout the entire process, detailed logs are printed to the console, showing the status of the listener, events found, and the outcome of each transaction.
 9.  **Continuation**: The loop sleeps for a configured interval (`POLL_INTERVAL`) and then repeats, ensuring continuous monitoring.
 
@@ -85,7 +85,7 @@ cd ScrollPlast
 
 ### 2. Install dependencies
 
-Create a virtual environment and install the required packages.
+It's recommended to use a virtual environment.
 ```bash
 python -m venv venv
 source venv/bin/activate  # On Windows use `venv\Scripts\activate`
@@ -105,7 +105,7 @@ SOURCE_CHAIN_RPC="https://sepolia.infura.io/v3/YOUR_INFURA_PROJECT_ID"
 DESTINATION_CHAIN_RPC="https://sepolia-rpc.scroll.io"
 
 # Private key of the relayer wallet (MUST have funds on the destination chain for gas)
-# DANGER: NEVER commit this file or expose this key. Use a dedicated, low-value wallet for development.
+# DANGER: NEVER commit this file. Use a dedicated wallet with minimal funds for development.
 RELAYER_PRIVATE_KEY="0x...your_private_key..."
 
 # Deployed address of the bridge contract on the source chain
@@ -128,15 +128,24 @@ Execute the main script from your terminal.
 ```bash
 python script.py
 ```
-The script initializes all the components and starts the main polling loop within the `BridgeEventListener`. A simplified view of the script's entry point looks like this:
+The script initializes all components and starts the main polling loop. A simplified view of the script's entry point looks like this:
 
 ```python
 # A simplified look at the main execution flow in script.py
-if __name__ == "__main__":
-    # ... initialization of ConfigManager, BlockchainConnectors, etc. ...
+def main():
+    """Initializes and runs the bridge event listener."""
+    config = ConfigManager()
+    
+    source_connector = BlockchainConnector(config.source_rpc, config.source_bridge_address)
+    dest_connector = BlockchainConnector(config.dest_rpc, config.dest_bridge_address, config.private_key)
+    
+    processor = TransactionProcessor(config, dest_connector)
     
     listener = BridgeEventListener(config, source_connector, processor)
     listener.listen()  # This starts the continuous polling loop
+
+if __name__ == "__main__":
+    main()
 ```
 
 The listener will start, and you will see log messages indicating its status.
