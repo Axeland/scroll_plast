@@ -26,11 +26,11 @@ The script is designed with a clear separation of concerns, organized into sever
 
 -   **`ConfigManager`**: Responsible for loading and validating all necessary configurations from a `.env` file. This includes RPC endpoints, private keys, contract addresses, and API keys. This approach keeps sensitive data and settings out of the main codebase.
 
--   **`BlockchainConnector`**: An abstraction layer over the `web3.py` library. It handles all direct interactions with blockchain nodes: creating web3 instances, connecting to RPCs, and instantiating contract objects. Its key responsibility is to build, sign, and send transactions with proper nonce management and error handling.
+-   **`BlockchainConnector`**: An abstraction layer over the `web3.py` library. It handles all direct interactions with blockchain nodes, such as creating web3 instances and instantiating contract objects. It manages the full transaction lifecycle: building, signing, and sending transactions, complete with proper nonce management and error handling.
 
--   **`TransactionProcessor`**: This class contains the business logic for what to do when an event is detected. It receives event data, validates it, constructs the appropriate function call for the destination contract (e.g., `mint()`), fetches an optimal gas price from an external API, and uses the `BlockchainConnector` to execute the transaction.
+-   **`TransactionProcessor`**: This class contains the business logic for what to do when an event is detected. It receives event data, constructs the appropriate function call for the destination contract (e.g., `mint()`), fetches an optimal gas price from an external API, and uses the `BlockchainConnector` to execute the transaction.
 
--   **`BridgeEventListener`**: The main orchestrator. It uses the `BlockchainConnector` to connect to the source chain and continuously polls for new `DepositMade` events from the bridge contract. When an event is found, it passes the data to the `TransactionProcessor` to be handled.
+-   **`BridgeEventListener`**: The main orchestrator. It uses the `BlockchainConnector` to connect to the source chain and continuously polls for new `DepositMade` events from the bridge contract. When an event is found, it passes the event data to the `TransactionProcessor` for processing.
 
 ### System Flow Diagram
 
@@ -70,7 +70,7 @@ The script is designed with a clear separation of concerns, organized into sever
     b.  Constructs the `mint` function call with parameters from the event (user address, amount, etc.).
     c.  (Optional) If configured, makes an HTTP request via the `requests` library to an external gas oracle API to fetch a competitive gas price.
     d.  Calls the `build_and_send_tx` method on the destination chain's `BlockchainConnector`.
-    e.  The connector handles nonce management, gas estimation, signing the transaction, sending it to the network, and waiting for the receipt to confirm success or failure.
+    e.  The connector handles nonce management, gas estimation, signing the transaction, sending it, and waiting for the receipt to confirm success or failure.
 8.  **Logging**: Throughout the entire process, detailed logs are printed to the console, showing the status of the listener, events found, and the outcome of each transaction.
 9.  **Continuation**: The loop sleeps for a configured interval (`POLL_INTERVAL`) and then repeats, ensuring continuous monitoring.
 
@@ -94,7 +94,7 @@ pip install -r requirements.txt
 
 ### 3. Create a configuration file
 
-Create a file named `.env` in the project's root directory and populate it with your specific details. Use the `env.example` file as a template.
+Create a file named `.env` in the project's root directory and populate it with your specific details. Use the `.env.example` file as a template.
 
 **`.env` file contents:**
 ```env
@@ -117,16 +117,26 @@ DESTINATION_BRIDGE_ADDRESS="0x...your_destination_contract_address..."
 # Polling interval in seconds
 POLL_INTERVAL=15
 
-# Optional: For external gas price estimation (e.g., Etherscan API for the destination chain)
+# Optional: For external gas price estimation (e.g., Scrollscan API for the destination chain)
 GAS_API_URL="https://api-sepolia.scrollscan.com/api"
 GAS_API_KEY="YOUR_SCROLLSCAN_API_KEY"
 ```
 
-### 4. Run the script
+### 4. Run the listener
 
 Execute the main script from your terminal.
 ```bash
 python script.py
+```
+The script initializes all the components and starts the main polling loop within the `BridgeEventListener`. A simplified view of the script's entry point looks like this:
+
+```python
+# A simplified look at the main execution flow in script.py
+if __name__ == "__main__":
+    # ... initialization of ConfigManager, BlockchainConnectors, etc. ...
+    
+    listener = BridgeEventListener(config, source_connector, processor)
+    listener.listen()  # This starts the continuous polling loop
 ```
 
 The listener will start, and you will see log messages indicating its status.
