@@ -2,7 +2,15 @@
 
 This repository contains a Python-based simulation of a critical component in a cross-chain bridge: the event listener. This component, often run by relayers or validators, is responsible for monitoring events on a source blockchain and triggering corresponding actions on a destination blockchain.
 
-This simulation is designed as a robust, well-architected example that demonstrates best practices for building components of a decentralized system, including configuration management, modular design, error handling, and interaction with external services.
+This simulation is designed as a robust, well-architected example demonstrating best practices for building decentralized system components, including configuration management, modular design, error handling, and interaction with external services.
+
+## Key Features
+
+*   **Modular Architecture**: Clear separation of concerns between configuration, blockchain interaction, and business logic.
+*   **Configuration Management**: Securely manages secrets and settings using a `.env` file.
+*   **Robust Transaction Handling**: Includes nonce management, gas price estimation via an external API, and waiting for transaction confirmation.
+*   **Persistent Polling**: Continuously monitors the source chain for new events with a configurable polling interval.
+*   **Error Handling**: Implements basic error handling for network requests and blockchain interactions.
 
 ## Concept
 
@@ -18,7 +26,7 @@ The script is designed with a clear separation of concerns, organized into sever
 
 -   **`ConfigManager`**: Responsible for loading and validating all necessary configurations from a `.env` file. This includes RPC endpoints, private keys, contract addresses, and API keys. This approach keeps sensitive data and settings out of the main codebase.
 
--   **`BlockchainConnector`**: An abstraction layer over the `web3.py` library. It handles all direct interactions with blockchain nodes, such as creating web3 instances, connecting to RPCs, instantiating contract objects, and, most importantly, building, signing, and sending transactions with proper nonce management and error handling.
+-   **`BlockchainConnector`**: An abstraction layer over the `web3.py` library. It handles all direct interactions with blockchain nodes: creating web3 instances, connecting to RPCs, and instantiating contract objects. Its key responsibility is to build, sign, and send transactions with proper nonce management and error handling.
 
 -   **`TransactionProcessor`**: This class contains the business logic for what to do when an event is detected. It receives event data, validates it, constructs the appropriate function call for the destination contract (e.g., `mint()`), fetches an optimal gas price from an external API, and uses the `BlockchainConnector` to execute the transaction.
 
@@ -49,7 +57,7 @@ The script is designed with a clear separation of concerns, organized into sever
                                   [User]
 ```
 
-## How it Works
+## How It Works
 
 1.  **Initialization**: The `main` function starts by instantiating the `ConfigManager` to load all required settings from the `.env` file.
 2.  **Connection**: It then creates two instances of `BlockchainConnector`: one for the source chain (read-only) and one for the destination chain (read-write, configured with the relayer's private key).
@@ -58,7 +66,7 @@ The script is designed with a clear separation of concerns, organized into sever
 5.  **Event Detection**: In each loop iteration, it queries the filter for new event entries.
 6.  **Processing**: If new events are found, it iterates through them and passes each one to the `TransactionProcessor`.
 7.  **Transaction Execution**: The `TransactionProcessor` performs the following steps for each event:
-    a.  Logs a unique identifier for the event (e.g., from the transaction hash and log index) to prevent duplicate processing.
+    a.  Logs a unique identifier for the event (based on the transaction hash and log index) to prevent duplicate processing.
     b.  Constructs the `mint` function call with parameters from the event (user address, amount, etc.).
     c.  (Optional) If configured, makes an HTTP request via the `requests` library to an external gas oracle API to fetch a competitive gas price.
     d.  Calls the `build_and_send_tx` method on the destination chain's `BlockchainConnector`.
@@ -68,69 +76,74 @@ The script is designed with a clear separation of concerns, organized into sever
 
 ## Usage
 
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/your-username/ScrollPlast.git
-    cd ScrollPlast
-    ```
+### 1. Clone the repository
 
-2.  **Install dependencies:**
-    Create a virtual environment and install the required packages.
-    ```bash
-    python -m venv venv
-    source venv/bin/activate  # On Windows use `venv\Scripts\activate`
-    pip install -r requirements.txt
-    ```
+```bash
+git clone https://github.com/your-username/ScrollPlast.git
+cd ScrollPlast
+```
 
-3.  **Create a configuration file:**
-    Create a file named `.env` in the project's root directory and populate it with your specific details. Use the template below:
+### 2. Install dependencies
 
-    ```env
-    # RPC endpoint for the source chain (e.g., Ethereum Sepolia)
-    SOURCE_CHAIN_RPC="https://sepolia.infura.io/v3/YOUR_INFURA_PROJECT_ID"
+Create a virtual environment and install the required packages.
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+pip install -r requirements.txt
+```
 
-    # RPC endpoint for the destination chain (e.g., Scroll Sepolia)
-    DESTINATION_CHAIN_RPC="https://sepolia-rpc.scroll.io"
+### 3. Create a configuration file
 
-    # Private key of the relayer wallet (MUST have funds on the destination chain for gas)
-    # IMPORTANT: Do not expose this key. Use a dedicated, low-value wallet for testing.
-    RELAYER_PRIVATE_KEY="0x...your_private_key..."
+Create a file named `.env` in the project's root directory and populate it with your specific details. Use the `env.example` file as a template.
 
-    # Deployed address of the bridge contract on the source chain
-    SOURCE_BRIDGE_ADDRESS="0x...your_source_contract_address..."
+**`.env` file contents:**
+```env
+# RPC endpoint for the source chain (e.g., Ethereum Sepolia)
+SOURCE_CHAIN_RPC="https://sepolia.infura.io/v3/YOUR_INFURA_PROJECT_ID"
 
-    # Deployed address of the bridge contract on the destination chain
-    DESTINATION_BRIDGE_ADDRESS="0x...your_destination_contract_address..."
-    
-    # Polling interval in seconds
-    POLL_INTERVAL=15
+# RPC endpoint for the destination chain (e.g., Scroll Sepolia)
+DESTINATION_CHAIN_RPC="https://sepolia-rpc.scroll.io"
 
-    # Optional: For external gas price estimation (e.g., Etherscan API for the destination chain)
-    GAS_API_URL="https://api-sepolia.scrollscan.com/api"
-    GAS_API_KEY="YOUR_SCROLLSCAN_API_KEY"
-    ```
+# Private key of the relayer wallet (MUST have funds on the destination chain for gas)
+# DANGER: NEVER commit this file or expose this key. Use a dedicated, low-value wallet for development.
+RELAYER_PRIVATE_KEY="0x...your_private_key..."
 
-4.  **Run the script:**
-    Execute the main script from your terminal.
-    ```bash
-    python script.py
-    ```
+# Deployed address of the bridge contract on the source chain
+SOURCE_BRIDGE_ADDRESS="0x...your_source_contract_address..."
 
-    The listener will start, and you will see log messages indicating its status.
+# Deployed address of the bridge contract on the destination chain
+DESTINATION_BRIDGE_ADDRESS="0x...your_destination_contract_address..."
 
-    **Example Output:**
-    ```
-    INFO:root:--- Starting Bridge Event Listener ---
-    INFO:root:Successfully connected to source chain (Chain ID: 11155111)
-    INFO:root:Successfully connected to destination chain (Chain ID: 534351)
-    INFO:root:Relayer address: 0xAbC...123
-    INFO:root:Starting to listen for 'DepositMade' events on contract 0x... from block 'latest'
-    INFO:root:Polling for new events... No new events found.
-    INFO:root:Polling for new events...
-    INFO:root:Found 1 new event(s).
-    INFO:root:Processing event: {'args': {'user': '0x...', 'amount': 1000000000000000000}, 'transactionHash': ...}
-    INFO:root:Building transaction to call 'mint' on contract 0x...
-    INFO:root:Transaction sent successfully. Hash: 0x...
-    INFO:root:Waiting for transaction receipt...
-    INFO:root:Transaction confirmed in block 123456.
-    ```
+# Polling interval in seconds
+POLL_INTERVAL=15
+
+# Optional: For external gas price estimation (e.g., Etherscan API for the destination chain)
+GAS_API_URL="https://api-sepolia.scrollscan.com/api"
+GAS_API_KEY="YOUR_SCROLLSCAN_API_KEY"
+```
+
+### 4. Run the script
+
+Execute the main script from your terminal.
+```bash
+python script.py
+```
+
+The listener will start, and you will see log messages indicating its status.
+
+**Example Output:**
+```
+INFO:root:--- Starting Bridge Event Listener ---
+INFO:root:Successfully connected to source chain (Chain ID: 11155111)
+INFO:root:Successfully connected to destination chain (Chain ID: 534351)
+INFO:root:Relayer address: 0xAbC...123
+INFO:root:Starting to listen for 'DepositMade' events on contract 0x... from block 'latest'
+INFO:root:Polling for new events... No new events found.
+INFO:root:Polling for new events...
+INFO:root:Found 1 new event(s).
+INFO:root:Processing event: {'args': {'user': '0x...', 'amount': 1000000000000000000}, 'transactionHash': ...}
+INFO:root:Building transaction to call 'mint' on contract 0x...
+INFO:root:Transaction sent successfully. Hash: 0x...
+INFO:root:Waiting for transaction receipt...
+INFO:root:Transaction confirmed in block 123456.
+```
